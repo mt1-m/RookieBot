@@ -1,0 +1,2 @@
+# RookieBot
+初めてのdiscordボット
