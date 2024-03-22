@@ -527,8 +527,8 @@ async def on_voice_state_update(member, before, after):
 # スレッド情報を保存する関数
 def save_thread_data(thread_data, file_name):
     folder_path = "chat_log"
-    # if not os.path.exists(folder_path):
-    #     os.makedirs(folder_path)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
     file_path = os.path.join(folder_path, file_name)
     with open(file_path, "wb") as f:
         pickle.dump(thread_data, f)
@@ -589,11 +589,6 @@ async def delete_thread(ctx, title: str):
         file_path = os.path.join("chat_log", file_name)
         if os.path.exists(file_path):
             os.remove(file_path)
-
-        # thread_data = load_thread_data()
-        # # スレッド情報を削除
-        # thread_data.pop(thread_to_delete.id, None)
-        # save_thread_data(thread_data, True)
 
         await ctx.followup.send(f"スレッド '{title}' を削除しました。")
     else:
