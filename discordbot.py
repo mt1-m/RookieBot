@@ -344,19 +344,19 @@ async def make_response(prompt, load):
     #     res_JA = "「" + res_JA
     print(res_JA_v2)
     # 応答を保存
-    await save_chat(
-        messages=messages,
-        new_message={"role": "assistant", "content": res},
-        total_tokens=total_tokens,
-    )
-    return res_JA_v2, total_tokens
+    # await save_chat(
+    #     messages=messages,
+    #     new_message={"role": "assistant", "content": res},
+    #     total_tokens=total_tokens,
+    # )
+    return res, res_JA_v2, total_tokens
 
 
-async def save_chat(messages, new_message, total_tokens):
-    # 新しいメッセージを追加し、チャット履歴をファイルに保存
-    messages.append(new_message)
-    with open(f"./outputs/chat_history.pickle", "wb") as f:
-        pickle.dump((messages, total_tokens), f)
+# async def save_chat(messages, new_message, total_tokens):
+#     # 新しいメッセージを追加し、チャット履歴をファイルに保存
+#     messages.append(new_message)
+#     with open(f"./outputs/chat_history.pickle", "wb") as f:
+#         pickle.dump((messages, total_tokens), f)
 
 
 COLOR = [
@@ -451,31 +451,22 @@ async def on_message(message):
         thread_info = thread_data.get(message.channel.id)
         nushi = thread_info["owner"]
         if thread_info:
-
-            # 過去のメッセージを表示
-            messages = [
-                msg
-                async for msg in message.channel.history(limit=200, oldest_first=True)
-            ]
-            if messages[-1].author.name != nushi:
+            if message.author.name != nushi:
                 print("無視")
                 return
+            chat_name = f"{message.channel.name}.pkl"
+            prompt_EN = await translate(message.content, "EN-US")
+            save_chat_data({"role": "user", "content": prompt_EN}, chat_name)
+            log_data = load_chat_data(chat_name)
 
-            log_data = [{"role": "system", "content": "You are a helpful assistant."}]
-            # メッセージを出力
-            for msg in messages[1:]:
-                author = msg.author.name
-                content = msg.content
-                if author == "RookieBot":
-                    log_data.append({"role": "system", "content": content})
-                elif author == nushi:
-                    log_data.append({"role": "user", "content": content})
-            response, tokens = await make_response(None, log_data)
+            EN_response, response, tokens = await make_response(None, log_data)
+            save_chat_data({"role": "system", "content": EN_response}, chat_name)
 
-            await message.channel.send(response)
-
-            print(f"{tokens} トークン使用({round(0.002*150*tokens/1000,5)}円相当)")
-
+            await message.channel.send(
+                response
+                + "\n"
+                + f"{tokens} トークン使用({round(0.002*150*tokens/1000,5)}円相当)"
+            )
             print(
                 f"Received message in thread '{thread_info['name']}' owned by user {thread_info['owner']}"
             )
@@ -524,21 +515,30 @@ async def on_voice_state_update(member, before, after):
     pass
 
 
+def load_chat_data(chat_name):
+    file_path = os.path.join("chat_log", chat_name)
+    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+        with open(file_path, "rb") as f:
+            chat_data = pickle.load(f)
+        return chat_data
+    else:
+        return []
+
+
 # スレッド情報を保存する関数
-def save_thread_data(thread_data, file_name):
-    folder_path = "chat_log"
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    file_path = os.path.join(folder_path, file_name)
+def save_chat_data(add_thread_data, chat_name):
+    existing_data = load_chat_data(chat_name)
+    existing_data.append(add_thread_data)
+
+    file_path = os.path.join("chat_log", chat_name)
     with open(file_path, "wb") as f:
-        pickle.dump(thread_data, f)
+        pickle.dump(existing_data, f)
 
 
 # スレッド情報を読み込む関数
-def load_thread_data(file_name):
-    folder_path = "chat_log"
-    file_path = os.path.join(folder_path, file_name)
-    if os.path.exists(file_path):
+def load_thread_data():
+    file_path = "threads_data.pkl"
+    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         with open(file_path, "rb") as f:
             thread_data = pickle.load(f)
         return thread_data
@@ -546,10 +546,27 @@ def load_thread_data(file_name):
         return {}
 
 
+# スレッド情報を保存する関数
+def save_thread_data(add_thread_data):
+    existing_data = load_thread_data()
+    existing_data.update(add_thread_data)
+
+    with open("threads_data.pkl", "wb") as f:
+        pickle.dump(existing_data, f)
+
+
 # スレッド作成
 @client.tree.command(name="chat", description="新しいスレッドを作成します。")
 @app_commands.describe(title="作成するスレッド名")
 async def chat(ctx, title: str):
+    await ctx.response.defer()
+    # すでに同じ名前のスレッドが存在するかどうかをチェック
+    for thread in ctx.guild.threads:
+        if thread.name == title:
+            await ctx.followup.send(
+                f"すでに '{title}' という名前のスレッドが存在します。"
+            )
+            return
     channel = ctx.channel
     thread = await channel.create_thread(
         name=title,
@@ -559,21 +576,25 @@ async def chat(ctx, title: str):
 
     # スレッド情報を保存
     thread_data = {}
-    thread_data[thread.id] = {"name": title, "owner": ctx.user.name}
-    save_thread_data(thread_data, f"{title}.pkl")
-
-    res = load_thread_data(f"{title}.pkl")
-    print(res)
+    thread_data[thread.id] = {
+        "name": title,
+        "owner": ctx.user.name,
+        "channel_id": channel.id,
+    }
+    file_name = f"{title}.pkl"
+    init_thread_data = {"role": "system", "content": "You are a helpful assistant."}
+    save_chat_data(init_thread_data, file_name)
+    save_thread_data(thread_data)
 
     await thread.send(f"{ctx.user.mention} What's up？")
-    await ctx.response.send_message(f"{link} こちらで会話してください")
+    await ctx.followup.send(f"{link} こちらで会話してください")
 
 
 @client.tree.command(name="delete_thread", description="指定したスレッドを削除します。")
 @app_commands.describe(title="削除するスレッド名")
 async def delete_thread(ctx, title: str):
     await ctx.response.defer()
-    # スレッドを検索
+
     thread_to_delete = None
     for thread in ctx.guild.threads:
         if thread.name == title:
@@ -581,7 +602,6 @@ async def delete_thread(ctx, title: str):
             break
 
     if thread_to_delete:
-        # スレッドを削除
         await thread_to_delete.delete()
 
         # 対応する.pklファイルを削除
@@ -589,6 +609,15 @@ async def delete_thread(ctx, title: str):
         file_path = os.path.join("chat_log", file_name)
         if os.path.exists(file_path):
             os.remove(file_path)
+
+        # スレッド情報を更新
+        thread_data = load_thread_data()
+        for thread_id, data in thread_data.items():
+            if data["name"] == title and data["channel_id"] == ctx.channel_id:
+                del thread_data[thread_id]
+                break
+        with open("threads_data.pkl", "wb") as f:
+            pickle.dump(thread_data, f)
 
         await ctx.followup.send(f"スレッド '{title}' を削除しました。")
     else:
