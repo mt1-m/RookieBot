@@ -44,7 +44,6 @@ async def on_ready():
     # アクティビティを設定
     new_activity = f"テスト"
     await client.change_presence(activity=discord.Game(new_activity))
-    # await client.tree.sync(guild=discord.Object(id=1201885911374110830))
     await client.tree.sync()
     print("ログインしました")
 
@@ -526,22 +525,24 @@ async def on_voice_state_update(member, before, after):
 
 
 # スレッド情報を保存する関数
-def save_thread_data(thread_data, new):
-    if not new:
-        existing_data = load_thread_data()
-        existing_data.update(thread_data)
-    else:
-        existing_data = thread_data
-    with open("outputs/thread_data.pkl", "wb") as file:
-        pickle.dump(existing_data, file)
+def save_thread_data(thread_data, file_name):
+    folder_path = "chat_log"
+    # if not os.path.exists(folder_path):
+    #     os.makedirs(folder_path)
+    file_path = os.path.join(folder_path, file_name)
+    with open(file_path, "wb") as f:
+        pickle.dump(thread_data, f)
 
 
 # スレッド情報を読み込む関数
-def load_thread_data():
-    try:
-        with open("outputs/thread_data.pkl", "rb") as file:
-            return pickle.load(file)
-    except FileNotFoundError:
+def load_thread_data(file_name):
+    folder_path = "chat_log"
+    file_path = os.path.join(folder_path, file_name)
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            thread_data = pickle.load(f)
+        return thread_data
+    else:
         return {}
 
 
@@ -559,9 +560,9 @@ async def chat(ctx, title: str):
     # スレッド情報を保存
     thread_data = {}
     thread_data[thread.id] = {"name": title, "owner": ctx.user.name}
-    save_thread_data(thread_data, False)
+    save_thread_data(thread_data, f"{title}.pkl")
 
-    res = load_thread_data()
+    res = load_thread_data(f"{title}.pkl")
     print(res)
 
     await thread.send(f"{ctx.user.mention} What's up？")
@@ -583,10 +584,16 @@ async def delete_thread(ctx, title: str):
         # スレッドを削除
         await thread_to_delete.delete()
 
-        thread_data = load_thread_data()
-        # スレッド情報を削除
-        thread_data.pop(thread_to_delete.id, None)
-        save_thread_data(thread_data, True)
+        # 対応する.pklファイルを削除
+        file_name = f"{title}.pkl"
+        file_path = os.path.join("chat_log", file_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        # thread_data = load_thread_data()
+        # # スレッド情報を削除
+        # thread_data.pop(thread_to_delete.id, None)
+        # save_thread_data(thread_data, True)
 
         await ctx.followup.send(f"スレッド '{title}' を削除しました。")
     else:
