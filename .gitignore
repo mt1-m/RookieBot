@@ -3,3 +3,6 @@
 
 # mypy
 .mypy_cache/
+
+chat_log/
+threads_data.pkl

@@ -283,11 +283,6 @@ async def make_response(prompt, load):
     # prompt_EN = await translate(prompt, "EN-US")
     prompt_EN = prompt
     if load:
-        # 会話履歴を読み込み、ユーザーのプロンプトを追加
-        # with open(f"./outputs/chat_history.pickle", "rb") as f:
-        #     messages, total_tokens = pickle.load(f)
-        # messages.append({"role": "user", "content": prompt_EN})
-
         messages = load
     else:
         # 新しい会話を開始
@@ -298,9 +293,9 @@ async def make_response(prompt, load):
     print(messages)
 
     response = openai.chat.completions.create(
-        model="gpt-3.5-turbo-16k-0613",
+        # model="gpt-3.5-turbo-0125",　# $0.50 / 1M tokens	$1.50 / 1M tokens
+        model="gpt-4-0125-preview",  # $10.00 / 1M tokens	$30.00 / 1M tokens
         # model="gpt-4-vision-preview",
-        # model="gpt-4-1106-preview",
         messages=messages,
         temperature=0,
     )
@@ -328,35 +323,8 @@ async def make_response(prompt, load):
             res_JA_v2.append("```" + quoted_texts[i] + "```")
             res_JA_v2.append(await translate(result_list[i], "JA"))
     res_JA_v2 = "".join(res_JA_v2)
-
-    # res_JA = await translate(res, "JA")
-    # res_JA = re.sub(r"(`{2,})", r"```", res_JA)
-    # print(type(res_JA))
-    # print(res_JA)
-    # print("sushi".index("s"))
-    # idx1 = -1
-    # idx2 = -1
-    # if "「" in res_JA:
-    #     idx1 = res_JA.index("「")
-    # if "」" in res_JA:
-    #     idx2 = res_JA.index("」")
-    # if idx1 > idx2:
-    #     res_JA = "「" + res_JA
     print(res_JA_v2)
-    # 応答を保存
-    # await save_chat(
-    #     messages=messages,
-    #     new_message={"role": "assistant", "content": res},
-    #     total_tokens=total_tokens,
-    # )
     return res, res_JA_v2, total_tokens
-
-
-# async def save_chat(messages, new_message, total_tokens):
-#     # 新しいメッセージを追加し、チャット履歴をファイルに保存
-#     messages.append(new_message)
-#     with open(f"./outputs/chat_history.pickle", "wb") as f:
-#         pickle.dump((messages, total_tokens), f)
 
 
 COLOR = [
@@ -447,6 +415,7 @@ async def on_message(message):
         await reply(message)  # 返信する非同期関数を実行
 
     if isinstance(message.channel, discord.Thread):
+        loading_message = await message.channel.send("返答生成中...")
         thread_data = load_thread_data()
         thread_info = thread_data.get(message.channel.id)
         nushi = thread_info["owner"]
@@ -462,10 +431,11 @@ async def on_message(message):
             EN_response, response, tokens = await make_response(None, log_data)
             save_chat_data({"role": "system", "content": EN_response}, chat_name)
 
-            await message.channel.send(
-                response
+            await loading_message.edit(
+                content=response
                 + "\n"
-                + f"{tokens} トークン使用({round(0.002*150*tokens/1000,5)}円相当)"
+                # + f"{tokens} トークン使用({round(150*1.50*tokens/1000000,5)}円相当)"
+                + f"{tokens} トークン使用({round(20*150*1.50*tokens/1000000,5)}円相当)"
             )
             print(
                 f"Received message in thread '{thread_info['name']}' owned by user {thread_info['owner']}"
@@ -632,18 +602,18 @@ async def infomation(ctx):
     await ctx.response.send_message("".join(res))
 
 
-@client.tree.command(name="chatgpt3-5_test")
+@client.tree.command(name="chatgpt4")
 @app_commands.describe(prompt="入力文")
-async def chatgpt35(ctx, prompt: str):
+async def chatgpt40(ctx, prompt: str):
     await ctx.response.defer()
-    response, tokens = await make_response(prompt, False)
+    _, response, tokens = await make_response(prompt, False)
     res = (
         "入力："
         + prompt
         + "\n\n回答："
         + response
         + "\n\n"
-        + f"{tokens} トークン使用({round(0.002*150*tokens/1000,5)}円相当)"
+        + f"{tokens} トークン使用({round(20*150*1.50*tokens/1000000,5)}円相当)"
     )
 
     chunks = [res[i : i + 1980] for i in range(0, len(res), 1980)]
