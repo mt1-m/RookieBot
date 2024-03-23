@@ -42,8 +42,8 @@ async def on_ready():
     check_contests.start()
     await greet()  # 挨拶する非同期関数を実行
     # アクティビティを設定
-    new_activity = f"テスト"
-    await client.change_presence(activity=discord.Game(new_activity))
+    # new_activity = f"テスト"
+    # await client.change_presence(activity=discord.Game(new_activity))
     await client.tree.sync()
     print("ログインしました")
 
