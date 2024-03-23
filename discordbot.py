@@ -415,7 +415,6 @@ async def on_message(message):
         await reply(message)  # 返信する非同期関数を実行
 
     if isinstance(message.channel, discord.Thread):
-        loading_message = await message.channel.send("返答生成中...")
         thread_data = load_thread_data()
         thread_info = thread_data.get(message.channel.id)
         nushi = thread_info["owner"]
@@ -423,6 +422,7 @@ async def on_message(message):
             if message.author.name != nushi:
                 print("無視")
                 return
+            loading_message = await message.channel.send("返答生成中...")
             chat_name = f"{message.channel.name}.pkl"
             prompt_EN = await translate(message.content, "EN-US")
             save_chat_data({"role": "user", "content": prompt_EN}, chat_name)
@@ -556,7 +556,7 @@ async def chat(ctx, title: str):
     save_chat_data(init_thread_data, file_name)
     save_thread_data(thread_data)
 
-    await thread.send(f"{ctx.user.mention} What's up？")
+    await thread.send(f"{ctx.user.mention} ハローワールド！")
     await ctx.followup.send(f"{link} こちらで会話してください")
 
 
@@ -572,6 +572,19 @@ async def delete_thread(ctx, title: str):
             break
 
     if thread_to_delete:
+        # スレッド情報を更新
+        thread_data = load_thread_data()
+        for thread_id, data in thread_data.items():
+            if data["name"] == title and data["channel_id"] == ctx.channel_id:
+                if data["owner"] != str(ctx.user):
+                    await ctx.followup.send("このスレッドを削除する権限がありません。")
+                    return
+                else:
+                    del thread_data[thread_id]
+                    break
+        with open("threads_data.pkl", "wb") as f:
+            pickle.dump(thread_data, f)
+
         await thread_to_delete.delete()
 
         # 対応する.pklファイルを削除
@@ -579,15 +592,6 @@ async def delete_thread(ctx, title: str):
         file_path = os.path.join("chat_log", file_name)
         if os.path.exists(file_path):
             os.remove(file_path)
-
-        # スレッド情報を更新
-        thread_data = load_thread_data()
-        for thread_id, data in thread_data.items():
-            if data["name"] == title and data["channel_id"] == ctx.channel_id:
-                del thread_data[thread_id]
-                break
-        with open("threads_data.pkl", "wb") as f:
-            pickle.dump(thread_data, f)
 
         await ctx.followup.send(f"スレッド '{title}' を削除しました。")
     else:
