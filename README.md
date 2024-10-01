@@ -31,13 +31,12 @@ RookieBot は、多機能な Discord ボットです。AtCoder のコンテス�
    ```
 2. **依存関係をインストール**
    ```bash
-     pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 3. **.env ファイルを作成**
 プロジェクトのルートディレクトリに .env ファイルを作成し、以下の変数を設定します。
 
 ```env
-コードをコピーする
 DISCORD_BOT_TOKEN=あなたのディスコードボットのトークン
 OPENAI_API_KEY=あなたのOpenAI APIキー
 DEEPL_API_KEY=あなたのDeepL APIキー
@@ -47,7 +46,7 @@ ANNOUNCE_CHANNEL_ID=AtCoderアナウンスを送信するチャンネルのID
 
 4. **ボットを実行**
 ```bash
-   python discordbot.py
+python discordbot.py
 ```
 
 5. **設定**
